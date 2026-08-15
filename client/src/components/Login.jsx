@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import API from '../api';
 import { Shield, BookOpen, Key, Users, Sparkles } from 'lucide-react';
 
-export default function Login({ onLoginSuccess }) {
+export default function Login({ onLoginSuccess, onBackToHome }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -42,7 +42,16 @@ export default function Login({ onLoginSuccess }) {
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-100 rounded-full blur-3xl -z-10 animate-pulse"></div>
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-100 rounded-full blur-3xl -z-10 animate-pulse delay-700"></div>
 
-      <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl border border-slate-200 relative">
+      <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl border border-slate-200 relative pt-12">
+        {onBackToHome && (
+          <button 
+            type="button"
+            onClick={onBackToHome}
+            className="absolute top-5 left-6 text-xs font-semibold text-slate-400 hover:text-slate-650 transition flex items-center gap-1"
+          >
+            &larr; Back to Home
+          </button>
+        )}
         
         {/* Header */}
         <div className="text-center mb-8">

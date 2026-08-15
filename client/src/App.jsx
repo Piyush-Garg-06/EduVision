@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
+import LandingPage from './components/LandingPage';
 import StudentDashboard from './components/StudentDashboard';
 import FacultyDashboard from './components/FacultyDashboard';
 import ParentDashboard from './components/ParentDashboard';
@@ -8,6 +9,7 @@ import API from './api';
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [showLogin, setShowLogin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -53,7 +55,10 @@ export default function App() {
   }
 
   if (!user) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    if (!showLogin) {
+      return <LandingPage onLaunchPortal={() => setShowLogin(true)} />;
+    }
+    return <Login onLoginSuccess={handleLoginSuccess} onBackToHome={() => setShowLogin(false)} />;
   }
 
   // Role-Based Router View rendering
