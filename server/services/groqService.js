@@ -67,7 +67,7 @@ JSON Structure:
   try {
     const chatCompletion = await groq.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
-      model: 'llama-3.1-8b-instant',
+      model: 'groq/compound-mini',
       temperature: 0.2,
       response_format: { type: "json_object" }
     });
@@ -105,7 +105,7 @@ Compare current skills with the selected career role requirements. Identify miss
   try {
     const chatCompletion = await groq.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
-      model: 'llama-3.1-8b-instant',
+      model: 'groq/compound-mini',
       temperature: 0.2,
       response_format: { type: "json_object" }
     });
@@ -298,7 +298,7 @@ If a student is asking, be motivating and guide them. If a teacher or parent is 
 
     const chatCompletion = await groq.chat.completions.create({
       messages,
-      model: 'llama-3.1-8b-instant',
+      model: 'groq/compound-mini',
       temperature: 0.7,
       max_tokens: 512
     });
