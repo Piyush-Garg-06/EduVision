@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import API from '../api';
 import AiChatbot from './AiChatbot';
+import MarkdownRenderer from './MarkdownRenderer';
 import { 
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, 
-  BarChart, Bar, Cell
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer 
 } from 'recharts';
 import { 
-  LayoutDashboard, GraduationCap, Calendar, BrainCircuit, Target, Trophy,
-  Award, BookOpen, CheckSquare, Sparkles, TrendingUp, Briefcase, 
-  AlertTriangle, Compass, RefreshCw, LogOut, CheckCircle2, ChevronRight,
-  Plus, Menu
+  LayoutDashboard, Calendar, BrainCircuit, Target, Trophy,
+  Award, CheckSquare, Sparkles, TrendingUp, Briefcase, 
+  AlertTriangle, RefreshCw, LogOut, CheckCircle2, ChevronRight,
+  Plus, Menu, Bell, X, Flame, ExternalLink, Trash2, Printer, ShieldCheck,
+  Send, Bot, User, Check, Clock
 } from 'lucide-react';
 
 export default function StudentDashboard({ user, onLogout }) {
@@ -19,27 +20,53 @@ export default function StudentDashboard({ user, onLogout }) {
   const [marks, setMarks] = useState([]);
   const [remediation, setRemediation] = useState(null);
   const [notifications, setNotifications] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Sidebar Tab Navigation State
-  const [activeTab, setActiveTab] = useState('overview'); // overview, academics, attendance, aiCounselor, skills, gamification
+  // Active Tab: overview, attendance, aiStudyPlan, aiCounselor, skills, portfolio, gamification
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Modals
+  const [showTranscriptModal, setShowTranscriptModal] = useState(false);
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
   // Skill Gap States
-  const [targetRole, setTargetRole] = useState('Software Developer');
+  const [targetRole, setTargetRole] = useState('Software Engineer');
   const [gapAnalysis, setGapAnalysis] = useState(null);
   const [analyzingGap, setAnalyzingGap] = useState(false);
 
   // AI Counselor Plan States
   const [generatingPlan, setGeneratingPlan] = useState(false);
 
-  // Form states
+  // Dedicated In-Tab AI Counselor Chat
+  const [counselorInput, setCounselorInput] = useState('');
+  const [counselorChat, setCounselorChat] = useState([
+    { 
+      role: 'assistant', 
+      content: `Hello ${user?.firstName || 'there'}! I am EduVision AI Counselor. How can I assist you with your course performance, attendance recovery, or career preparation today?` 
+    }
+  ]);
+  const [chatLoading, setChatLoading] = useState(false);
+
+  // Form states for Portfolio
   const [newSkill, setNewSkill] = useState('');
   const [skillLevel, setSkillLevel] = useState(3);
   const [addingSkill, setAddingSkill] = useState(false);
 
   const [newProjTitle, setNewProjTitle] = useState('');
   const [newProjDesc, setNewProjDesc] = useState('');
+  const [newProjUrl, setNewProjUrl] = useState('');
   const [addingProj, setAddingProj] = useState(false);
+
+  const [newCertTitle, setNewCertTitle] = useState('');
+  const [newCertIssuer, setNewCertIssuer] = useState('');
+  const [addingCert, setAddingCert] = useState(false);
+
+  const [newInternCompany, setNewInternCompany] = useState('');
+  const [newInternRole, setNewInternRole] = useState('');
+  const [newInternDuration, setNewInternDuration] = useState('');
+  const [addingIntern, setAddingIntern] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -52,51 +79,76 @@ export default function StudentDashboard({ user, onLogout }) {
       setProfile(meRes.data.profile);
       const studentId = meRes.data.user._id || meRes.data.user.id;
 
-      const [attRes, marksRes, remRes, notifRes] = await Promise.all([
+      const [attRes, marksRes, remRes, notifRes, lbRes] = await Promise.all([
         API.get(`/academic/attendance/${studentId}`),
         API.get(`/academic/marks/${studentId}`),
         API.get(`/academic/remediation/${studentId}`),
-        API.get(`/academic/notifications`)
+        API.get(`/academic/notifications`),
+        API.get('/analytics/leaderboard').catch(() => ({ data: [] }))
       ]);
 
-      setAttendance(attRes.data);
-      setMarks(marksRes.data);
-      setRemediation(remRes.data);
-      setNotifications(notifRes.data);
+      setAttendance(attRes.data || []);
+      setMarks(marksRes.data || []);
+      setRemediation(remRes.data || null);
+      setNotifications(notifRes.data || []);
+      setLeaderboard(lbRes.data || []);
     } catch (err) {
-      console.error('Error fetching dashboard data:', err);
+      console.error('Error fetching student dashboard data:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  // Generate or Refresh AI Study & Recovery Plan
   const handleGenerateAiPlan = async () => {
     setGeneratingPlan(true);
     try {
       const res = await API.post('/ai/action-plan', { studentId: user._id || user.id });
       setRemediation(res.data.remediation);
-      alert('AI recovery plan successfully generated by Groq Llama-3!');
+      const meRes = await API.get('/auth/me');
+      setProfile(meRes.data.profile);
+      alert('Personalized Academic Recovery and Study Schedule generated successfully!');
     } catch (err) {
       console.error(err);
-      alert('Error calling Groq API. Active local fallback plan loaded.');
+      alert('Error contacting AI service. Active local fallback plan loaded.');
     } finally {
       setGeneratingPlan(false);
     }
   };
 
-  const handleAnalyzeSkillGap = async () => {
+  // Analyze Career Skill Gap
+  const handleAnalyzeSkillGap = async (roleToAnalyze) => {
+    const role = roleToAnalyze || targetRole;
     setAnalyzingGap(true);
     try {
-      const res = await API.post('/ai/skill-gap', { targetRole });
+      const res = await API.post('/ai/skill-gap', { targetRole: role });
       setGapAnalysis(res.data);
     } catch (err) {
       console.error(err);
-      alert('Error fetching gap analysis.');
+      alert('Error fetching career gap analysis.');
     } finally {
       setAnalyzingGap(false);
     }
   };
 
+  // Toggle Daily Study Plan Milestone
+  const handleToggleStudyDay = async (idx) => {
+    try {
+      const res = await API.post('/academic/study-plan/toggle-day', { dayIndex: idx });
+      setProfile(prev => ({
+        ...prev,
+        aiStudyPlan: res.data,
+        gamification: {
+          ...prev.gamification,
+          xp: (prev.gamification?.xp || 0) + 40
+        }
+      }));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Toggle Remedial Task Status
   const handleToggleTask = async (taskId, currentStatus) => {
     const nextStatus = currentStatus === 'completed' ? 'assigned' : 'completed';
     try {
@@ -106,7 +158,6 @@ export default function StudentDashboard({ user, onLogout }) {
         status: nextStatus
       });
       setRemediation(res.data);
-      // Refresh user details (XP level)
       const meRes = await API.get('/auth/me');
       setProfile(meRes.data.profile);
     } catch (err) {
@@ -114,15 +165,51 @@ export default function StudentDashboard({ user, onLogout }) {
     }
   };
 
+  // In-Tab AI Counselor Chat
+  const handleSendCounselorMessage = async (customText) => {
+    const query = customText || counselorInput;
+    if (!query.trim() || chatLoading) return;
+
+    const userMsg = { role: 'user', content: query };
+    setCounselorChat(prev => [...prev, userMsg]);
+    setCounselorInput('');
+    setChatLoading(true);
+
+    try {
+      const history = counselorChat.slice(-4).map(c => ({ role: c.role, content: c.content }));
+      const res = await API.post('/ai/chat', {
+        studentId: user._id || user.id,
+        message: query,
+        chatHistory: history
+      });
+
+      setCounselorChat(prev => [...prev, {
+        role: 'assistant',
+        content: res.data.response,
+        isAiPowered: res.data.isAiPowered
+      }]);
+    } catch (err) {
+      console.error(err);
+      setCounselorChat(prev => [...prev, {
+        role: 'assistant',
+        content: "I am experiencing a momentary connection issue. Please try again shortly.",
+        isAiPowered: false
+      }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  // Portfolio Management
   const handleAddSkill = async (e) => {
     e.preventDefault();
-    if (!newSkill) return;
+    if (!newSkill.trim()) return;
     setAddingSkill(true);
     try {
-      const res = await API.post('/academic/portfolio/skills', { name: newSkill, level: skillLevel });
+      const res = await API.post('/academic/portfolio/skills', { name: newSkill.trim(), level: skillLevel });
       setProfile(res.data);
       setNewSkill('');
-      alert('Skill added successfully!');
+      alert('Skill recorded successfully. +15 XP earned!');
     } catch (err) {
       console.error(err);
     } finally {
@@ -130,20 +217,31 @@ export default function StudentDashboard({ user, onLogout }) {
     }
   };
 
+  const handleDeleteSkill = async (skillName) => {
+    try {
+      const res = await API.delete(`/academic/portfolio/skill/${encodeURIComponent(skillName)}`);
+      setProfile(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleAddProject = async (e) => {
     e.preventDefault();
-    if (!newProjTitle) return;
+    if (!newProjTitle.trim()) return;
     setAddingProj(true);
     try {
       const res = await API.post('/academic/portfolio/achievement', {
         category: 'project',
-        title: newProjTitle,
-        description: newProjDesc
+        title: newProjTitle.trim(),
+        description: newProjDesc.trim(),
+        url: newProjUrl.trim()
       });
       setProfile(res.data);
       setNewProjTitle('');
       setNewProjDesc('');
-      alert('Project successfully cataloged!');
+      setNewProjUrl('');
+      alert('Project saved successfully. +50 XP awarded!');
     } catch (err) {
       console.error(err);
     } finally {
@@ -151,10 +249,91 @@ export default function StudentDashboard({ user, onLogout }) {
     }
   };
 
+  const handleDeleteProject = async (projId) => {
+    try {
+      const res = await API.delete(`/academic/portfolio/project/${projId}`);
+      setProfile(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddCertification = async (e) => {
+    e.preventDefault();
+    if (!newCertTitle.trim()) return;
+    setAddingCert(true);
+    try {
+      const res = await API.post('/academic/portfolio/achievement', {
+        category: 'certification',
+        title: newCertTitle.trim(),
+        issuer: newCertIssuer.trim()
+      });
+      setProfile(res.data);
+      setNewCertTitle('');
+      setNewCertIssuer('');
+      alert('Certification recorded. +75 XP awarded!');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAddingCert(false);
+    }
+  };
+
+  const handleDeleteCertification = async (certId) => {
+    try {
+      const res = await API.delete(`/academic/portfolio/certification/${certId}`);
+      setProfile(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddInternship = async (e) => {
+    e.preventDefault();
+    if (!newInternCompany.trim()) return;
+    setAddingIntern(true);
+    try {
+      const res = await API.post('/academic/portfolio/achievement', {
+        category: 'internship',
+        title: newInternRole.trim() || 'Intern',
+        company: newInternCompany.trim(),
+        duration: newInternDuration.trim()
+      });
+      setProfile(res.data);
+      setNewInternCompany('');
+      setNewInternRole('');
+      setNewInternDuration('');
+      alert('Internship cataloged. +100 XP awarded!');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAddingIntern(false);
+    }
+  };
+
+  const handleDeleteInternship = async (internId) => {
+    try {
+      const res = await API.delete(`/academic/portfolio/internship/${internId}`);
+      setProfile(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Notifications
+  const handleMarkAllNotifsRead = async () => {
+    try {
+      await API.post('/academic/notifications/read-all');
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleReadNotif = async (notifId) => {
     try {
       await API.post(`/academic/notifications/read/${notifId}`);
-      setNotifications(prev => prev.filter(n => n._id !== notifId));
+      setNotifications(prev => prev.map(n => n._id === notifId ? { ...n, isRead: true } : n));
     } catch (err) {
       console.error(err);
     }
@@ -162,721 +341,532 @@ export default function StudentDashboard({ user, onLogout }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-700">
+      <div className="h-screen w-screen flex items-center justify-center bg-slate-950 text-slate-100">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-500 font-medium">Loading student workspace...</p>
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-cyan-400 rounded-full animate-spin"></div>
+          <p className="text-slate-400 font-medium tracking-wide">Synchronizing EduVision Student Profile...</p>
         </div>
       </div>
     );
   }
 
-  // Attendance metrics
+  // Attendance metrics calculation
   let totalClasses = 0;
   let attendedClasses = 0;
-  const attendanceChartData = attendance.map(a => {
+  const attendanceBreakdown = attendance.map(a => {
     const present = a.records.filter(r => r.status === 'present').length;
     const total = a.records.length;
     totalClasses += total;
     attendedClasses += present;
     const pct = total > 0 ? (present / total) * 100 : 100;
-    return { name: a.courseCode, Attendance: parseFloat(pct.toFixed(1)) };
+    
+    // Professional safety margin calculation
+    let safeMarginText = '';
+    let statusColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    if (pct < 75) {
+      const needed = Math.max(1, Math.ceil((0.75 * total - present) / 0.25));
+      safeMarginText = `Shortage Alert: Must attend next ${needed} consecutive lectures`;
+      statusColor = 'text-rose-400 bg-rose-500/10 border-rose-500/30';
+    } else {
+      const canMiss = Math.floor((present - 0.75 * total) / 0.75);
+      safeMarginText = canMiss > 0 ? `Safe Buffer: Up to ${canMiss} absences permitted` : `Eligibility boundary: Attend upcoming lectures`;
+      if (pct < 80) statusColor = 'text-amber-400 bg-amber-500/10 border-amber-500/30';
+    }
+
+    return {
+      courseCode: a.courseCode,
+      courseName: a.courseName,
+      present,
+      total,
+      percentage: pct.toFixed(1),
+      safeMarginText,
+      statusColor
+    };
   });
 
   const overallAttendancePct = totalClasses > 0 ? (attendedClasses / totalClasses) * 100 : 100;
 
-  const forecastClassesNeeded = () => {
-    const target = 75;
-    if (overallAttendancePct >= target) return 0;
-    return Math.ceil((target * totalClasses - 100 * attendedClasses) / (100 - target));
-  };
+  // Gamification metrics
+  const currentXp = profile?.gamification?.xp || 0;
+  const currentLevel = profile?.gamification?.level || 1;
+  const xpInCurrentLevel = currentXp % 500;
+  const levelProgressPct = Math.min(100, Math.round((xpInCurrentLevel / 500) * 100));
+  const currentStreak = profile?.gamification?.streak || 1;
 
-  const calcPlacementScore = () => {
-    if (!profile) return 0;
-    const cgpaScore = (profile.cgpa / 10) * 30;
-    const skillsScore = Math.min((profile.skills?.length || 0) * 8, 25);
-    const projectsScore = Math.min((profile.portfolio?.projects?.length || 0) * 15, 30);
-    const attFactor = overallAttendancePct >= 80 ? 15 : (overallAttendancePct / 80) * 15;
-    return Math.round(cgpaScore + skillsScore + projectsScore + attFactor);
-  };
-
-  const placementScore = calcPlacementScore();
+  const levelTitles = [
+    'Novice Scholar',
+    'Academic Explorer',
+    'Knowledge Practitioner',
+    'Master Scholar',
+    'Senior Academic Fellow'
+  ];
+  const levelTitle = levelTitles[Math.min(currentLevel - 1, levelTitles.length - 1)];
+  const unreadNotifsCount = notifications.filter(n => !n.isRead).length;
 
   return (
-    <div className="min-h-screen flex bg-slate-50 text-slate-800">
+    // Fixed Viewport Layout: guarantees sidebar spans 100% height without any gap
+    <div className="h-screen w-full flex bg-slate-950 text-slate-100 overflow-hidden">
       
-      {/* Overlay for mobile sidebar */}
+      {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-slate-950/40 z-45 md:hidden"
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 md:hidden"
           onClick={() => setIsSidebarOpen(false)}
         ></div>
       )}
-      
+
       {/* Sidebar Navigation */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 md:translate-x-0 md:static md:h-screen shrink-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-300 md:translate-x-0 md:static md:h-full self-stretch shrink-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         
-        {/* Portal Branding */}
-        <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center font-black text-white text-lg shadow-md shadow-indigo-200">
-            E
-          </div>
-          <div>
-            <h2 className="font-extrabold text-slate-800 tracking-tight leading-none text-base">EduVision</h2>
-            <span className="text-[10px] text-indigo-600 font-semibold tracking-wider uppercase">Student Console</span>
-          </div>
-        </div>
-
-        {/* Tab Links */}
-        <nav className="flex-1 px-4 py-6 space-y-1.5">
-          <button
-            onClick={() => { setActiveTab('overview'); setIsSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-              activeTab === 'overview' 
-                ? 'bg-indigo-50 text-indigo-700' 
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4" /> Overview Dashboard
-          </button>
-          
-          <button
-            onClick={() => { setActiveTab('academics'); setIsSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-              activeTab === 'academics' 
-                ? 'bg-indigo-50 text-indigo-700' 
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-            }`}
-          >
-            <GraduationCap className="w-4 h-4" /> Academic Records
-          </button>
-
-          <button
-            onClick={() => { setActiveTab('attendance'); setIsSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-              activeTab === 'attendance' 
-                ? 'bg-indigo-50 text-indigo-700' 
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-            }`}
-          >
-            <Calendar className="w-4 h-4" /> Attendance Forecast
-          </button>
-
-          <button
-            onClick={() => { setActiveTab('aiCounselor'); setIsSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-              activeTab === 'aiCounselor' 
-                ? 'bg-indigo-50 text-indigo-700' 
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-            }`}
-          >
-            <BrainCircuit className="w-4 h-4" /> AI Counselor & Plan
-          </button>
-
-          <button
-            onClick={() => { setActiveTab('skills'); setIsSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-              activeTab === 'skills' 
-                ? 'bg-indigo-50 text-indigo-700' 
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-            }`}
-          >
-            <Target className="w-4 h-4" /> Skills & Gap Advisor
-          </button>
-
-          <button
-            onClick={() => { setActiveTab('gamification'); setIsSidebarOpen(false); }}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
-              activeTab === 'gamification' 
-                ? 'bg-indigo-50 text-indigo-700' 
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-            }`}
-          >
-            <Trophy className="w-4 h-4" /> Gamification Portal
-          </button>
-        </nav>
-
-        {/* User profile footer */}
-        <div className="p-4 border-t border-slate-100 flex flex-col gap-3">
-          <div className="flex items-center gap-3 px-2">
-            <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-indigo-600 text-sm border border-slate-200">
-              {user.firstName[0]}{user.lastName[0]}
+        {/* Branding */}
+        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-500 flex items-center justify-center font-black text-white text-lg shadow-lg shadow-indigo-500/20">
+              E
             </div>
-            <div className="truncate">
-              <span className="block text-xs font-bold text-slate-800 truncate">{user.firstName} {user.lastName}</span>
-              <span className="block text-[10px] text-slate-400 truncate">{profile?.collegeId}</span>
+            <div>
+              <h2 className="font-extrabold text-white tracking-tight leading-none text-base">EduVision</h2>
+              <span className="text-[10px] text-cyan-400 font-semibold tracking-wider uppercase">Student Console</span>
             </div>
           </div>
           <button 
-            onClick={onLogout}
-            className="w-full flex items-center justify-center gap-2 py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 rounded-xl text-xs font-semibold transition border border-slate-200/50"
+            onClick={() => setIsSidebarOpen(false)}
+            className="md:hidden text-slate-400 hover:text-white p-1"
           >
-            <LogOut className="w-3.5 h-3.5" /> Sign Out
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tab Navigation (Academic & CGPA Radar removed per user request) */}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {[
+            { id: 'overview', label: 'Overview Dashboard', icon: LayoutDashboard },
+            { id: 'attendance', label: 'Attendance & Buffer Margins', icon: Calendar },
+            { id: 'aiStudyPlan', label: 'AI Study & Recovery Plan', icon: BrainCircuit, badge: 'AI' },
+            { id: 'aiCounselor', label: 'AI Counselor & Mentor', icon: Sparkles, badge: '24/7' },
+            { id: 'skills', label: 'Career & Skill Pathways', icon: Target },
+            { id: 'portfolio', label: 'Digital Portfolio & Resume', icon: Briefcase },
+            { id: 'gamification', label: 'Gamification & Quests', icon: Trophy, count: `${currentXp} XP` },
+          ].map(item => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+                  isActive 
+                    ? 'bg-gradient-to-r from-indigo-600 to-cyan-600 text-white shadow-md shadow-indigo-600/20' 
+                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <span>{item.label}</span>
+                </div>
+                {item.badge && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-cyan-500/20 text-cyan-300'
+                  }`}>
+                    {item.badge}
+                  </span>
+                )}
+                {item.count && (
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-mono font-bold">
+                    {item.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* User Card & Logout (Anchored cleanly at the bottom) */}
+        <div className="p-4 border-t border-slate-800 bg-slate-900/50 shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-cyan-500 flex items-center justify-center font-bold text-xs text-white">
+                {user?.firstName?.[0] || 'S'}
+              </div>
+              <div className="leading-tight">
+                <p className="text-xs font-bold text-white truncate max-w-[120px]">
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className="text-[10px] text-slate-400 font-mono">{profile?.collegeId}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full text-[11px] font-bold">
+              <Flame className="w-3.5 h-3.5" />
+              <span>{currentStreak}d</span>
+            </div>
+          </div>
+
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition border border-slate-800 hover:border-rose-500/30"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out Session</span>
           </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-y-auto max-h-screen w-full">
+      {/* Main Scrollable Area */}
+      <main className="flex-1 flex flex-col h-full overflow-y-auto overflow-x-hidden">
         
-        {/* Top Header Section */}
-        <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        {/* Top Header Bar */}
+        <header className="sticky top-0 z-30 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="md:hidden p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition shrink-0"
-              title="Open Menu"
+              className="md:hidden p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <h2 className="text-sm sm:text-lg font-bold text-slate-800 uppercase tracking-tight">
-              {activeTab === 'overview' && 'Overview Dashboard'}
-              {activeTab === 'academics' && 'Academic Evaluation & Scores'}
-              {activeTab === 'attendance' && 'Attendance Forecasting Console'}
-              {activeTab === 'aiCounselor' && 'Groq AI Counselor & Action Plan'}
-              {activeTab === 'skills' && 'Skills Roster & Career Gap Analysis'}
-              {activeTab === 'gamification' && 'Gamified Badges & Points Leaderboard'}
-            </h2>
+            <div>
+              <h1 className="text-lg font-extrabold text-white tracking-tight capitalize">
+                {activeTab === 'aiStudyPlan' ? 'AI Study Schedule & Recovery Timetable' :
+                 activeTab === 'attendance' ? 'Attendance Radar & Buffer Margins' :
+                 activeTab === 'aiCounselor' ? 'AI Academic Counselor & Mentor' :
+                 activeTab === 'skills' ? 'Career & Technical Skill Pathways' :
+                 activeTab === 'portfolio' ? 'Digital Portfolio & Resume Builder' :
+                 activeTab === 'gamification' ? 'Gamification & Daily Challenges' :
+                 'Academic Performance Dashboard'}
+              </h1>
+              <p className="text-xs text-slate-400 hidden sm:block">
+                Semester {profile?.semester || 5} &bull; {profile?.department || 'Computer Science & Engineering'}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={fetchDashboardData}
-              className="p-2 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-800 transition"
-              title="Refresh Data"
+
+          {/* Action Header Icons */}
+          <div className="flex items-center gap-3">
+            
+            {/* Quick Transcript Modal Trigger */}
+            <button
+              onClick={() => setShowTranscriptModal(true)}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-bold border border-slate-700 transition"
             >
-              <RefreshCw className="w-5 h-5" />
+              <Printer className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Marksheet</span>
             </button>
+
+            {/* Quick Digital Resume Modal Trigger */}
+            <button
+              onClick={() => setShowResumeModal(true)}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-xs font-bold border border-indigo-500/30 transition"
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              <span>Digital Resume</span>
+            </button>
+
+            {/* Notification Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white relative border border-slate-700 transition"
+                aria-label="Notifications"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadNotifsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[9px] font-black flex items-center justify-center animate-pulse">
+                    {unreadNotifsCount}
+                  </span>
+                )}
+              </button>
+
+              {showNotifDropdown && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 glass-panel-glow rounded-2xl shadow-2xl z-50 p-4 border border-slate-700 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-cyan-400" />
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">Alerts & Notifications</h4>
+                    </div>
+                    {unreadNotifsCount > 0 && (
+                      <button
+                        onClick={handleMarkAllNotifsRead}
+                        className="text-[10px] text-cyan-400 hover:underline font-semibold"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-800/60 my-2">
+                    {notifications.length === 0 ? (
+                      <p className="text-xs text-slate-500 py-4 text-center">No active notifications</p>
+                    ) : (
+                      notifications.map(n => (
+                        <div 
+                          key={n._id}
+                          onClick={() => handleReadNotif(n._id)}
+                          className={`py-2.5 px-1 cursor-pointer transition flex items-start gap-2.5 ${n.isRead ? 'opacity-60' : 'opacity-100'}`}
+                        >
+                          <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.type === 'warning' ? 'bg-rose-500' : 'bg-cyan-500'}`}></div>
+                          <div className="flex-1">
+                            <p className="text-xs text-slate-200 leading-snug">{n.message}</p>
+                            <span className="text-[9px] text-slate-500 block mt-1">
+                              {new Date(n.createdAt).toLocaleDateString()} &bull; {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Gamification Level Pill */}
+            <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700">
+              <Trophy className="w-4 h-4 text-amber-400" />
+              <div className="text-left leading-none">
+                <span className="text-[11px] font-bold text-white block">Lvl {currentLevel}</span>
+                <span className="text-[9px] text-slate-400">{currentXp} XP</span>
+              </div>
+            </div>
           </div>
         </header>
 
         {/* Content Body */}
-        <div className="p-8 space-y-6 w-full">
-          
-          {/* Active Notifications Alert Bar */}
-          {notifications.filter(n => !n.isRead).length > 0 && (
-            <div className="space-y-2">
-              {notifications.filter(n => !n.isRead).map(notif => (
-                <div key={notif._id} className="p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 flex items-center justify-between text-xs sm:text-sm shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
-                    <div>
-                      <strong className="block text-xs uppercase tracking-wider text-rose-900 font-bold">{notif.type.replace('_', ' ')}</strong>
-                      <span className="text-slate-600">{notif.message}</span>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => handleReadNotif(notif._id)}
-                    className="px-2.5 py-1 bg-white hover:bg-rose-100 text-rose-800 border border-rose-200 text-xs rounded-lg transition font-medium"
-                  >
-                    Dismiss
-                  </button>
+        <div className="p-6 max-w-7xl mx-auto w-full space-y-6">
+
+          {/* Academic Risk Alert Banner */}
+          {remediation?.riskLevel === 'high' && (
+            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
                 </div>
-              ))}
+                <div>
+                  <h3 className="text-sm font-bold text-rose-300">
+                    Academic Risk Alert: High Risk Intervention Required
+                  </h3>
+                  <p className="text-xs text-rose-400/80 mt-0.5">
+                    {remediation.reasons?.join('; ') || 'Attendance or internal evaluation scores below required minimum threshold.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab('aiStudyPlan')}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shrink-0 transition"
+              >
+                View AI Recovery Plan &rarr;
+              </button>
             </div>
           )}
 
-          {/* TAB 1: OVERVIEW */}
+          {/* ========================================================= */}
+          {/* TAB 1: OVERVIEW DASHBOARD */}
+          {/* ========================================================= */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
               
-              {/* Telemetry Cards Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              {/* Top 4 KPI Metrics */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 {/* CGPA Card */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Cumulative CGPA</span>
-                    <span className="text-4xl font-extrabold text-slate-900 mt-1 block">{(profile?.cgpa || 0.0).toFixed(2)}</span>
-                    <span className="text-[10px] text-emerald-600 font-semibold mt-2 block">✓ Semester 1-4 Complete</span>
+                <div className="glass-panel p-5 rounded-2xl border border-slate-800 relative overflow-hidden">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Cumulative CGPA</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-extrabold text-white">{profile?.cgpa?.toFixed(2)}</span>
+                    <span className="text-xs text-slate-400">/ 10.0 scale</span>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-indigo-50 text-indigo-600">
-                    <GraduationCap className="w-6 h-6" />
-                  </div>
-                </div>
-
-                {/* Attendance Card */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Overall Attendance</span>
-                    <span className={`text-4xl font-extrabold mt-1 block ${overallAttendancePct >= 75 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {overallAttendancePct.toFixed(1)}%
-                    </span>
-                    <span className="text-[10px] text-slate-500 mt-2 block">Threshold requirement: 75%</span>
-                  </div>
-                  <div className={`p-3.5 rounded-xl ${overallAttendancePct >= 75 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                    <Calendar className="w-6 h-6" />
-                  </div>
-                </div>
-
-                {/* Risk Level Card */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Risk Assessment</span>
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mt-3 border ${
-                      remediation?.riskLevel === 'high' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                      remediation?.riskLevel === 'medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                      'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  <div className="mt-3">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      (profile?.cgpa || 0) >= 8 ? 'bg-emerald-500/20 text-emerald-300' :
+                      (profile?.cgpa || 0) >= 6.5 ? 'bg-amber-500/20 text-amber-300' :
+                      'bg-rose-500/20 text-rose-300'
                     }`}>
-                      <span className={`w-2 h-2 rounded-full ${
-                        remediation?.riskLevel === 'high' ? 'bg-rose-600' :
-                        remediation?.riskLevel === 'medium' ? 'bg-amber-500' :
-                        'bg-emerald-500'
-                      }`}></span>
-                      {remediation?.riskLevel?.toUpperCase() || 'LOW'}
+                      {(profile?.cgpa || 0) >= 8 ? 'First Class Distinction' :
+                       (profile?.cgpa || 0) >= 6.5 ? 'Average Performance' : 'Academic Remediation Required'}
                     </span>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-slate-50 text-slate-500">
-                    <AlertTriangle className="w-6 h-6" />
+                </div>
+
+                {/* Overall Attendance Card */}
+                <div className="glass-panel p-5 rounded-2xl border border-slate-800 relative overflow-hidden">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Overall Attendance</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-extrabold text-white">{overallAttendancePct.toFixed(1)}%</span>
+                    <span className="text-xs text-slate-400">({attendedClasses}/{totalClasses} lectures)</span>
+                  </div>
+                  <div className="mt-3">
+                    <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full ${
+                          overallAttendancePct >= 75 ? 'bg-cyan-500' : 'bg-rose-500'
+                        }`}
+                        style={{ width: `${Math.min(100, overallAttendancePct)}%` }}
+                      ></div>
+                    </div>
                   </div>
                 </div>
 
-              </div>
+                {/* Risk Index Card */}
+                <div className="glass-panel p-5 rounded-2xl border border-slate-800 relative overflow-hidden">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Academic Risk Index</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-extrabold text-white">
+                      {remediation?.riskScore?.toFixed(0) || 0}
+                    </span>
+                    <span className="text-xs text-slate-400">/ 100 Index</span>
+                  </div>
+                  <div className="mt-3">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      remediation?.riskLevel === 'high' ? 'bg-rose-500/20 text-rose-300' :
+                      remediation?.riskLevel === 'medium' ? 'bg-amber-500/20 text-amber-300' :
+                      'bg-emerald-500/20 text-emerald-300'
+                    }`}>
+                      {remediation?.riskLevel || 'Low'} Risk Status
+                    </span>
+                  </div>
+                </div>
 
-              {/* Placement Readiness Block */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                <div className="md:col-span-8 space-y-2">
-                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <Briefcase className="w-5 h-5 text-indigo-600" /> Placement Readiness Status
-                  </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Evaluates cumulative academic performance, verified skill endorsements, active portfolio counts, and class attendance logs to audit placement clearance index.
+                {/* Gamification Level Card */}
+                <div className="glass-panel p-5 rounded-2xl border border-slate-800 relative overflow-hidden">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Level & Daily Streak</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-extrabold text-amber-400">Lvl {currentLevel}</span>
+                    <span className="text-xs text-slate-300 font-bold">🔥 {currentStreak}d Streak</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2 truncate">
+                    {levelTitle} ({xpInCurrentLevel}/500 XP to Level {currentLevel + 1})
                   </p>
-                  <div className="pt-2">
-                    <span className="text-xs font-semibold text-slate-400 block mb-1">Clearance Checklist Status</span>
-                    <div className="flex flex-wrap gap-2 text-[10px] font-bold">
-                      <span className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700">CGPA &gt; 7.5</span>
-                      <span className={`px-2 py-0.5 rounded border ${
-                        overallAttendancePct >= 75 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
-                      }`}>Attendance Threshold</span>
-                      <span className="px-2 py-0.5 rounded bg-slate-50 border border-slate-200 text-slate-600">Projects Logged</span>
+                </div>
+
+              </div>
+
+              {/* Two Column Layout: SGPA Progression Chart & Remedial Tasks */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* SGPA Progression Chart */}
+                <div className="lg:col-span-2 glass-panel p-6 rounded-3xl border border-slate-800">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-base font-bold text-white">Academic Performance Journey</h3>
+                      <p className="text-xs text-slate-400">Semester-by-semester SGPA progression</p>
                     </div>
-                  </div>
-                </div>
-                <div className="md:col-span-4 text-center border-l border-slate-100 pl-6 py-2">
-                  <div className="inline-flex items-baseline justify-center gap-1">
-                    <span className="text-5xl font-black text-indigo-600">{placementScore}</span>
-                    <span className="text-sm font-bold text-slate-400">%</span>
-                  </div>
-                  <span className="block text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Clearance Score</span>
-                  <div className="w-full bg-slate-100 rounded-full h-2 mt-3 overflow-hidden">
-                    <div className="bg-indigo-600 h-full transition-all" style={{ width: `${placementScore}%` }}></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Attendance and Grade Overview Mini charts */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Subject Attendance Performance</h4>
-                <div className="h-60 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={attendanceChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                      <YAxis stroke="#94a3b8" fontSize={11} domain={[0, 100]} tickLine={false} />
-                      <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8 }} />
-                      <Bar dataKey="Attendance" radius={[4, 4, 0, 0]} barSize={40}>
-                        {attendanceChartData.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={entry.Attendance >= 75 ? '#10b981' : entry.Attendance >= 60 ? '#f59e0b' : '#ef4444'} 
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-            </div>
-          )}
-
-          {/* TAB 2: ACADEMICS */}
-          {activeTab === 'academics' && (
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Subject-wise Evaluation Scores</h3>
-                <p className="text-xs text-slate-500">View internal assessments, practical evaluations, and final semester grades.</p>
-              </div>
-
-              <div className="space-y-4">
-                {marks.map((m, idx) => {
-                  const finalMark = m.evaluations.find(e => e.type === 'final_semester');
-                  const i1 = m.evaluations.find(e => e.type === 'internal_1');
-                  const i2 = m.evaluations.find(e => e.type === 'internal_2');
-                  const practical = m.evaluations.find(e => e.type === 'practical');
-
-                  return (
-                    <div key={idx} className="p-5 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
-                        <div>
-                          <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">{m.courseCode}</span>
-                          <h4 className="text-base font-bold text-slate-800">{m.courseName}</h4>
-                        </div>
-                        {finalMark && (
-                          <div className="bg-indigo-50 border border-indigo-100 px-3.5 py-1.5 rounded-xl text-right">
-                            <span className="text-[9px] text-indigo-500 font-bold block uppercase tracking-wider">Final Exam Grade</span>
-                            <span className="text-sm font-extrabold text-indigo-700">{finalMark.obtained}/{finalMark.maxMarks}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Sub marks list */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-3 border-t border-slate-200/60 text-xs">
-                        <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100">
-                          <span className="text-slate-400">Midterm Test 1</span>
-                          <strong className="text-slate-800">{i1 ? `${i1.obtained}/${i1.maxMarks}` : 'N/A'}</strong>
-                        </div>
-                        <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100">
-                          <span className="text-slate-400">Midterm Test 2</span>
-                          <strong className="text-slate-800">{i2 ? `${i2.obtained}/${i2.maxMarks}` : 'N/A'}</strong>
-                        </div>
-                        <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100">
-                          <span className="text-slate-400">Practical Lab Marks</span>
-                          <strong className="text-slate-800">{practical ? `${practical.obtained}/${practical.maxMarks}` : 'N/A'}</strong>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: ATTENDANCE & FORECAST */}
-          {activeTab === 'attendance' && (
-            <div className="space-y-6">
-              
-              {/* Overall telemetry */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">Attendance Log & Forecasting</h3>
-                  <p className="text-xs text-slate-500">Predict future attendance trajectories based on upcoming scheduled classes</p>
-                </div>
-                <div className="bg-slate-50 border border-slate-200 px-6 py-3 rounded-2xl text-center md:text-right">
-                  <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider">Overall Rate</span>
-                  <span className={`text-3xl font-extrabold ${overallAttendancePct >= 75 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {overallAttendancePct.toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Forecasting calculator results banner */}
-              <div className="p-4 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-900 flex items-center gap-3">
-                <TrendingUp className="w-5 h-5 text-indigo-600 shrink-0" />
-                <span className="text-xs sm:text-sm font-semibold">
-                  {overallAttendancePct >= 75 
-                    ? 'Safe Zone Alert: Your attendance meets the regulatory requirements. Keep attending classes to stay above!' 
-                    : `Shortage Recovery Target: You need to attend the next ${forecastClassesNeeded()} classes consecutively to cross the 75% bar.`}
-                </span>
-              </div>
-
-              {/* Subject Breakdown cards */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Subject Attendance Breakdown</h4>
-                {attendance.map((att, idx) => {
-                  const present = att.records.filter(r => r.status === 'present').length;
-                  const total = att.records.length;
-                  const pct = total > 0 ? (present / total) * 100 : 100;
-
-                  return (
-                    <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                      <div>
-                        <span className="text-[10px] text-indigo-600 font-bold uppercase">{att.courseCode}</span>
-                        <h5 className="text-sm font-bold text-slate-800">{att.courseName}</h5>
-                      </div>
-                      
-                      <div className="flex items-center gap-6 text-xs w-full sm:w-auto justify-between sm:justify-end">
-                        <div className="text-right">
-                          <span className="text-slate-400 block text-[10px]">Lectures Attended</span>
-                          <strong className="text-slate-800">{present} of {total} Conducted</strong>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-slate-400 block text-[10px]">Percentage</span>
-                          <strong className={`font-bold ${pct >= 75 ? 'text-emerald-600' : 'text-rose-600'}`}>{pct.toFixed(1)}%</strong>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-            </div>
-          )}
-
-          {/* TAB 4: AI COUNSELOR */}
-          {activeTab === 'aiCounselor' && (
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-              
-              {/* Header */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-indigo-600" /> Academic Remediation & AI Counseling
-                  </h3>
-                  <p className="text-xs text-slate-500">AI recovery checklists generated using Groq LLM (Llama-3)</p>
-                </div>
-                <button
-                  onClick={handleGenerateAiPlan}
-                  disabled={generatingPlan}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shadow-md shadow-indigo-200"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${generatingPlan ? 'animate-spin' : ''}`} />
-                  {generatingPlan ? 'Consulting Counselor...' : 'Re-Generate Recovery Plan'}
-                </button>
-              </div>
-
-              {/* Advisor Remarks */}
-              {remediation?.mentorRemarks && (
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="text-xs text-indigo-600 font-bold uppercase tracking-wider block mb-1">Counselor / Mentor Observations</span>
-                  <p className="text-xs text-slate-600 leading-relaxed">{remediation.mentorRemarks}</p>
-                </div>
-              )}
-
-              {/* Checklist Grid */}
-              <div className="space-y-3">
-                <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block mb-2">My Active Recovery Actions</span>
-                {remediation?.assignedActions?.length > 0 ? (
-                  remediation.assignedActions.map((act) => (
-                    <div 
-                      key={act._id}
-                      onClick={() => handleToggleTask(act._id, act.status)}
-                      className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/20 transition cursor-pointer"
+                    <button
+                      onClick={() => setShowTranscriptModal(true)}
+                      className="text-xs font-semibold text-cyan-400 hover:underline flex items-center gap-1"
                     >
-                      <CheckSquare className={`w-5 h-5 shrink-0 mt-0.5 transition ${
-                        act.status === 'completed' ? 'text-emerald-600 fill-emerald-50' : 'text-slate-400'
-                      }`} />
-                      <div className="text-xs">
-                        <p className={`font-semibold ${act.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-700'}`}>
-                          {act.task}
-                        </p>
-                        <span className="text-[10px] text-slate-400 block mt-1">Assigned on: {new Date(act.assignedDate).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-slate-400 text-xs">
-                    No active recovery tasks found. Click 'Re-Generate Recovery Plan' to fetch AI advice.
+                      View Marksheet &rarr;
+                    </button>
                   </div>
-                )}
-              </div>
-
-            </div>
-          )}
-
-          {/* TAB 5: SKILLS & GAP ADVISOR */}
-          {activeTab === 'skills' && (
-            <div className="space-y-6">
-              
-              {/* AI Gap Analyzer */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <Target className="w-5 h-5 text-indigo-600" /> Career Skill Gap Advisor
-                  </h3>
-                  <p className="text-xs text-slate-500">Run an AI diagnostics map comparing your skills with industrial target job roles.</p>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={profile?.sgpaHistory?.map(s => ({ sem: `Sem ${s.semester}`, sgpa: s.sgpa })) || []}>
+                        <defs>
+                          <linearGradient id="sgpaGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="sem" stroke="#64748b" textAnchor="end" fontSize={11} />
+                        <YAxis stroke="#64748b" domain={[0, 10]} fontSize={11} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                          labelStyle={{ color: '#94a3b8' }}
+                        />
+                        <Area type="monotone" dataKey="sgpa" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#sgpaGrad)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <select
-                    value={targetRole}
-                    onChange={(e) => setTargetRole(e.target.value)}
-                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm text-slate-700 focus:border-indigo-500"
-                  >
-                    <option value="Software Developer">Software Developer</option>
-                    <option value="Data Analyst">Data Analyst</option>
-                    <option value="AI Engineer">AI Engineer</option>
-                    <option value="Cloud Solutions Architect">Cloud Solutions Architect</option>
-                  </select>
+                {/* Remedial Action Tasks */}
+                <div className="glass-panel p-6 rounded-3xl border border-slate-800 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <CheckSquare className="w-5 h-5 text-indigo-400" />
+                        <h3 className="text-base font-bold text-white">Remedial Action Tasks</h3>
+                      </div>
+                      <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-bold">
+                        +100 XP Each
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mb-4">
+                      Assigned to resolve academic risk flags:
+                    </p>
+
+                    <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                      {(!remediation?.assignedActions || remediation.assignedActions.length === 0) ? (
+                        <p className="text-xs text-slate-500 py-6 text-center">No outstanding remedial tasks assigned. All clear!</p>
+                      ) : (
+                        remediation.assignedActions.map(action => (
+                          <div
+                            key={action._id}
+                            onClick={() => handleToggleTask(action._id, action.status)}
+                            className={`p-3 rounded-xl border cursor-pointer transition flex items-start gap-3 ${
+                              action.status === 'completed'
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                                : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
+                              action.status === 'completed' ? 'bg-emerald-500 text-white' : 'border border-slate-600'
+                            }`}>
+                              {action.status === 'completed' && <Check className="w-3.5 h-3.5" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-medium leading-snug ${action.status === 'completed' ? 'line-through text-slate-400' : ''}`}>
+                                {action.task}
+                              </p>
+                              <span className="text-[10px] text-slate-500 block mt-1 capitalize">
+                                Status: {action.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
                   <button
-                    onClick={handleAnalyzeSkillGap}
-                    disabled={analyzingGap}
-                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 text-sm font-semibold rounded-xl transition"
+                    onClick={() => setActiveTab('aiStudyPlan')}
+                    className="w-full mt-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-white text-xs font-bold transition flex items-center justify-center gap-1.5"
                   >
-                    {analyzingGap ? 'Analyzing via Groq...' : 'Audit Target Skills'}
+                    <span>Open 7-Day Recovery Timetable</span>
+                    <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
 
-                {/* Analysis display */}
-                {gapAnalysis && (
-                  <div className="p-5 rounded-xl bg-slate-50 border border-slate-200 space-y-4 text-xs">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                      <span className="font-bold text-slate-700">Match Percentage for {targetRole}:</span>
-                      <span className="text-2xl font-black text-indigo-600">{gapAnalysis.roleMatchPercentage}%</span>
-                    </div>
-
-                    <div>
-                      <span className="text-slate-400 font-bold block mb-2">Missing Skills Target:</span>
-                      <div className="flex flex-wrap gap-2">
-                        {gapAnalysis.missingSkills?.map((skill, idx) => (
-                          <span key={idx} className="px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg font-semibold">
-                            {skill.name} ({skill.importance.toUpperCase()})
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 pt-3 border-t border-slate-200">
-                      <span className="text-slate-400 font-bold block">AI Roadmap & recommendations:</span>
-                      {gapAnalysis.recommendedRoadmap?.map((phase, idx) => (
-                        <div key={idx} className="space-y-1">
-                          <h5 className="font-bold text-indigo-600">{phase.phase}</h5>
-                          <ul className="list-disc pl-4 text-slate-600 space-y-1">
-                            {phase.actions?.map((act, actIdx) => (
-                              <li key={actIdx}>{act}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {/* Skills and Projects portfolio grids */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Skill addition */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                  <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Endorse Skills</h4>
-                  
-                  <form onSubmit={handleAddSkill} className="space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Skill name, e.g. Docker, SQL"
-                      value={newSkill}
-                      onChange={(e) => setNewSkill(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs focus:border-indigo-500"
-                    />
-                    <div className="flex justify-between items-center text-xs text-slate-500">
-                      <label>Competency Level:</label>
-                      <select 
-                        value={skillLevel}
-                        onChange={(e) => setSkillLevel(Number(e.target.value))}
-                        className="bg-slate-50 border border-slate-200 px-2 py-1 rounded outline-none"
-                      >
-                        <option value={1}>1 (Beginner)</option>
-                        <option value={2}>2</option>
-                        <option value={3}>3 (Intermediate)</option>
-                        <option value={4}>4</option>
-                        <option value={5}>5 (Expert)</option>
-                      </select>
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={addingSkill}
-                      className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition"
-                    >
-                      Add Skill
-                    </button>
-                  </form>
+              {/* Course Attendance Radar Grid */}
+              <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Course Attendance Buffer & Margins</h3>
+                    <p className="text-xs text-slate-400">Strict 75% examination eligibility threshold</p>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('attendance')}
+                    className="text-xs font-semibold text-cyan-400 hover:underline"
+                  >
+                    Detailed History &rarr;
+                  </button>
+                </div>
 
-                  <div className="pt-2">
-                    <span className="text-xs text-slate-400 font-bold block mb-2">My Skill Grid</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {profile?.skills?.map((sk, idx) => (
-                        <span 
-                          key={idx}
-                          className={`text-xs px-2.5 py-1 rounded-lg border ${
-                            sk.verified 
-                              ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' 
-                              : 'bg-slate-50 border-slate-200 text-slate-500'
-                          }`}
-                        >
-                          {sk.name} (Lvl {sk.level}) {sk.verified && '✓'}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {attendanceBreakdown.slice(0, 6).map(item => (
+                    <div 
+                      key={item.courseCode}
+                      className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition"
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-extrabold text-white">{item.courseCode}</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${item.statusColor}`}>
+                          {item.percentage}%
                         </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Project catalog */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                  <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Log Projects</h4>
-
-                  <form onSubmit={handleAddProject} className="space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Project Title"
-                      value={newProjTitle}
-                      onChange={(e) => setNewProjTitle(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs focus:border-indigo-500"
-                    />
-                    <textarea
-                      placeholder="Description details..."
-                      rows={2}
-                      value={newProjDesc}
-                      onChange={(e) => setNewProjDesc(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs focus:border-indigo-500 resize-none"
-                    />
-                    <button
-                      type="submit"
-                      disabled={addingProj}
-                      className="w-full py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-semibold transition"
-                    >
-                      Log Project
-                    </button>
-                  </form>
-
-                  <div className="pt-2">
-                    <span className="text-xs text-slate-400 font-bold block mb-2">My Projects</span>
-                    <div className="space-y-2 max-h-36 overflow-y-auto pr-2">
-                      {profile?.portfolio?.projects?.map((p, idx) => (
-                        <div key={idx} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px]">
-                          <h5 className="font-semibold text-slate-800">{p.title}</h5>
-                          <p className="text-slate-500 mt-0.5">{p.description}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-            </div>
-          )}
-
-          {/* TAB 6: GAMIFICATION */}
-          {activeTab === 'gamification' && (
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-              
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <Trophy className="w-5 h-5 text-amber-500" /> Gamification Portal
-                  </h3>
-                  <p className="text-xs text-slate-500">Collect XP logs by maintaining attendance and completing remediation tasks.</p>
-                </div>
-                <div className="bg-amber-50 border border-amber-100 text-amber-800 px-6 py-2.5 rounded-2xl text-center">
-                  <span className="text-xs font-bold block uppercase tracking-wider">Cumulative XP</span>
-                  <span className="text-3xl font-black">{profile?.gamification?.xp || 0} XP</span>
-                </div>
-              </div>
-
-              {/* Progress level */}
-              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-slate-700">Rank: Level {profile?.gamification?.level || 1} Student</span>
-                  <span className="text-slate-400">{500 - ((profile?.gamification?.xp || 0) % 500)} XP to Next Level</span>
-                </div>
-                <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
-                  <div 
-                    className="bg-amber-500 h-full transition-all duration-500"
-                    style={{ width: `${Math.min(((profile?.gamification?.xp || 0) % 500) / 5, 100)}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* Badges list */}
-              <div>
-                <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block mb-3">My Trophies & Badges</span>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {profile?.gamification?.badges?.map((badge, idx) => (
-                    <div key={idx} className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 flex flex-col items-center justify-center text-center">
-                      <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-lg mb-2 shadow-sm">
-                        🏆
                       </div>
-                      <span className="text-xs font-bold text-amber-800">{badge}</span>
-                      <span className="text-[9px] text-slate-400 mt-1">Verified Endorsement</span>
+                      <p className="text-[11px] text-slate-400 truncate mb-2">{item.courseName}</p>
+                      <div className="text-[10px] text-slate-400 flex items-center justify-between pt-2 border-t border-slate-800/60">
+                        <span>Attended {item.present}/{item.total}</span>
+                        <span className="font-semibold text-cyan-300">{item.safeMarginText}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -885,12 +875,1032 @@ export default function StudentDashboard({ user, onLogout }) {
             </div>
           )}
 
-        </div>
-        
-        {/* Floating AI Chatbot Assistant */}
-        <AiChatbot studentId={user._id || user.id} placeholderText="Ask EduVision AI about your progress..." />
+          {/* ========================================================= */}
+          {/* TAB 2: ATTENDANCE & BUFFER MARGIN ANALYSIS */}
+          {/* ========================================================= */}
+          {activeTab === 'attendance' && (
+            <div className="space-y-6">
+              
+              {/* Overall Attendance Summary Banner */}
+              <div className="glass-panel p-6 rounded-3xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-6">
+                <div>
+                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider block mb-1">
+                    Institutional Attendance Radar
+                  </span>
+                  <h3 className="text-2xl font-extrabold text-white">
+                    Overall: {overallAttendancePct.toFixed(1)}% Attended
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Total lectures conducted: <strong>{totalClasses}</strong> &bull; Present: <strong>{attendedClasses}</strong> &bull; Absent: <strong>{totalClasses - attendedClasses}</strong>
+                  </p>
+                </div>
 
+                <div className="flex items-center gap-4">
+                  <div className="text-center p-3 rounded-2xl bg-slate-900 border border-slate-800">
+                    <span className="text-xs text-slate-400 block font-semibold">Minimum Cutoff</span>
+                    <span className="text-xl font-bold text-indigo-400">75%</span>
+                  </div>
+                  <div className="text-center p-3 rounded-2xl bg-slate-900 border border-slate-800">
+                    <span className="text-xs text-slate-400 block font-semibold">Eligibility Status</span>
+                    <span className={`text-xl font-bold ${overallAttendancePct >= 75 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {overallAttendancePct >= 75 ? 'Eligible' : 'Detention Risk'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Course-by-Course Attendance Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {attendanceBreakdown.map(item => (
+                  <div 
+                    key={item.courseCode}
+                    className="glass-panel p-5 rounded-2xl border border-slate-800 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-extrabold text-white">{item.courseCode}</span>
+                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${item.statusColor}`}>
+                          {item.percentage}%
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-semibold text-slate-300 mb-3">{item.courseName}</h4>
+
+                      <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-3">
+                        <div 
+                          className={`h-full rounded-full ${parseFloat(item.percentage) >= 75 ? 'bg-cyan-500' : 'bg-rose-500'}`}
+                          style={{ width: `${Math.min(100, parseFloat(item.percentage))}%` }}
+                        ></div>
+                      </div>
+
+                      <div className="grid grid-cols-3 text-center gap-2 py-2 bg-slate-900/60 rounded-xl text-xs mb-3">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Total</span>
+                          <span className="font-bold text-white">{item.total}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-emerald-400 block">Present</span>
+                          <span className="font-bold text-white">{item.present}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-rose-400 block">Absent</span>
+                          <span className="font-bold text-white">{item.total - item.present}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] font-semibold text-cyan-300 flex items-center justify-between">
+                      <span>Advisory Margin:</span>
+                      <span>{item.safeMarginText}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* TAB 3: AI STUDY & RECOVERY PLAN */}
+          {/* ========================================================= */}
+          {activeTab === 'aiStudyPlan' && (
+            <div className="space-y-6">
+              
+              {/* AI Study Plan Banner */}
+              <div className="glass-panel-glow p-6 rounded-3xl border border-indigo-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <div className="inline-flex items-center gap-2 text-cyan-400 text-xs font-bold uppercase tracking-wider mb-1">
+                    <BrainCircuit className="w-4 h-4 animate-pulse" />
+                    <span>Personalized Recovery Schedule Engine</span>
+                  </div>
+                  <h3 className="text-xl font-extrabold text-white">
+                    7-Day Structured Academic Recovery Timetable
+                  </h3>
+                  <div className="text-xs text-slate-300 mt-2 max-w-2xl leading-relaxed">
+                    <MarkdownRenderer content={profile?.aiStudyPlan?.summary || remediation?.mentorRemarks || 'AI continuously evaluates assessment grades and attendance logs to prescribe daily micro-milestones.'} />
+                  </div>
+                </div>
+                <button
+                  onClick={handleGenerateAiPlan}
+                  disabled={generatingPlan}
+                  className="px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-indigo-600/30 transition flex items-center gap-2 shrink-0 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${generatingPlan ? 'animate-spin' : ''}`} />
+                  <span>{generatingPlan ? 'Evaluating Telemetry...' : 'Regenerate Study Plan'}</span>
+                </button>
+              </div>
+
+              {/* 7-Day Timetable Grid */}
+              <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Daily Learning Schedule</h3>
+                    <p className="text-xs text-slate-400">Complete each daily milestone to earn +40 XP toward your next level</p>
+                  </div>
+                  <span className="text-xs text-cyan-400 font-mono font-bold">
+                    Semester {profile?.semester || 5}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {(profile?.aiStudyPlan?.weeklySchedule?.length > 0 ? profile.aiStudyPlan.weeklySchedule : [
+                    { day: "Monday", focusSubject: "Compiler Design", targetTopic: "Syntax Trees & LL(1) Parsing Mechanics", durationMinutes: 90, isCompleted: false },
+                    { day: "Tuesday", focusSubject: "Compiler Design", targetTopic: "LR Parsing Tables & Shift-Reduce Operations", durationMinutes: 75, isCompleted: false },
+                    { day: "Wednesday", focusSubject: "Operating Systems", targetTopic: "Deadlock Detection Algorithms & Semaphores", durationMinutes: 90, isCompleted: false },
+                    { day: "Thursday", focusSubject: "Analysis of Algorithms", targetTopic: "Dynamic Programming Memoization Strategies", durationMinutes: 60, isCompleted: false },
+                    { day: "Friday", focusSubject: "Compiler Design Lab", targetTopic: "LEX / YACC Specification Practice Programs", durationMinutes: 90, isCompleted: false },
+                    { day: "Saturday", focusSubject: "Comprehensive Revision", targetTopic: "Previous 3-Year Midterm Exam Solutions", durationMinutes: 120, isCompleted: false },
+                    { day: "Sunday", focusSubject: "Progress Assessment", targetTopic: "Diagnostic Mock Quiz & Faculty Doubt Clearance", durationMinutes: 60, isCompleted: false }
+                  ]).map((item, idx) => (
+                    <div 
+                      key={item.day}
+                      onClick={() => handleToggleStudyDay(idx)}
+                      className={`p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between ${
+                        item.isCompleted 
+                          ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' 
+                          : 'bg-slate-900 border-slate-800 hover:border-indigo-500/50 text-slate-300'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider font-mono">{item.day}</span>
+                          <div className={`w-5 h-5 rounded-md flex items-center justify-center ${
+                            item.isCompleted ? 'bg-emerald-500 text-white' : 'border border-slate-600'
+                          }`}>
+                            {item.isCompleted && <Check className="w-3.5 h-3.5" />}
+                          </div>
+                        </div>
+                        <h4 className={`text-sm font-bold text-white mb-1 ${item.isCompleted ? 'line-through text-slate-400' : ''}`}>
+                          {item.focusSubject}
+                        </h4>
+                        <p className="text-xs text-slate-400 leading-snug">
+                          {item.targetTopic}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {item.durationMinutes} mins
+                        </span>
+                        <span className={`font-bold ${item.isCompleted ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          {item.isCompleted ? 'Completed (+40 XP)' : 'Tap to Mark Done'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* TAB 4: AI COUNSELOR & 24/7 MENTOR */}
+          {/* ========================================================= */}
+          {activeTab === 'aiCounselor' && (
+            <div className="space-y-6">
+              
+              <div className="glass-panel p-6 rounded-3xl border border-slate-800 flex flex-col h-[650px]">
+                {/* Counselor Header */}
+                <div className="pb-4 border-b border-slate-800 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-cyan-500 flex items-center justify-center text-white shadow-lg">
+                      <Sparkles className="w-5 h-5 text-cyan-200 animate-pulse" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-extrabold text-white">EduVision AI Academic Counselor</h3>
+                      <p className="text-xs text-cyan-400">Context-Aware Advisory &bull; 24/7 Academic Support</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded-full font-bold">
+                    AI Online & Connected
+                  </span>
+                </div>
+
+                {/* Suggested Prompt Chips */}
+                <div className="py-3 flex flex-wrap gap-2 border-b border-slate-800/60">
+                  {[
+                    "How can I improve my performance in Compiler Design?",
+                    "What is my strategy to restore attendance above 75%?",
+                    "Recommend an academic recovery plan to reach 7.5 CGPA",
+                    "What portfolio projects align with Software Engineer roles?"
+                  ].map((chip, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSendCounselorMessage(chip)}
+                      className="px-3 py-1 rounded-full bg-slate-900 border border-slate-700 hover:border-indigo-500/50 text-[11px] text-slate-300 hover:text-white transition"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Chat Scroll Area */}
+                <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
+                  {counselorChat.map((msg, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      {msg.role !== 'user' && (
+                        <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 shrink-0">
+                          <Bot className="w-4 h-4" />
+                        </div>
+                      )}
+                      <div className={`p-4 rounded-2xl max-w-xl text-xs leading-relaxed ${
+                        msg.role === 'user'
+                          ? 'bg-gradient-to-r from-indigo-600 to-cyan-600 text-white rounded-br-none shadow-md'
+                          : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'
+                      }`}>
+                        {msg.role === 'user' ? (
+                          <p className="whitespace-pre-line text-white">{msg.content}</p>
+                        ) : (
+                          <MarkdownRenderer content={msg.content} />
+                        )}
+                      </div>
+                      {msg.role === 'user' && (
+                        <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
+                          <User className="w-4 h-4" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div className="flex items-center gap-2 text-slate-400 text-xs">
+                      <div className="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></div>
+                      <span>EduVision AI is analyzing your academic telemetry...</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Input Bar */}
+                <div className="pt-3 border-t border-slate-800 flex items-center gap-3">
+                  <input
+                    type="text"
+                    value={counselorInput}
+                    onChange={(e) => setCounselorInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendCounselorMessage()}
+                    placeholder="Ask counselor about academic recovery, course preparation, or career pathways..."
+                    className="flex-1 px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none"
+                  />
+                  <button
+                    onClick={() => handleSendCounselorMessage()}
+                    disabled={chatLoading}
+                    className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition disabled:opacity-50"
+                  >
+                    <span>Send</span>
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* TAB 5: CAREER & SKILL PATHWAYS */}
+          {/* ========================================================= */}
+          {activeTab === 'skills' && (
+            <div className="space-y-6">
+              
+              <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+                <div className="max-w-2xl mb-6">
+                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider block mb-1">
+                    Industry Skill Gap Analysis
+                  </span>
+                  <h3 className="text-xl font-extrabold text-white">
+                    Target Career Pathways & Competency Benchmarking
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Select your target profession to benchmark current competencies against current industry hiring requirements.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 mb-6">
+                  {[
+                    'Software Engineer',
+                    'Full Stack Web Developer',
+                    'AI / Machine Learning Engineer',
+                    'Cloud & DevOps Engineer',
+                    'Data Scientist',
+                    'Cybersecurity Analyst'
+                  ].map(role => (
+                    <button
+                      key={role}
+                      onClick={() => { setTargetRole(role); handleAnalyzeSkillGap(role); }}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+                        targetRole === role
+                          ? 'bg-gradient-to-r from-indigo-600 to-cyan-500 text-white shadow-md'
+                          : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {role}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => handleAnalyzeSkillGap()}
+                  disabled={analyzingGap}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-bold text-xs uppercase tracking-wider shadow-lg transition flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Target className="w-4 h-4" />
+                  <span>{analyzingGap ? 'Analyzing Industry Standards...' : `Benchmark Skills for ${targetRole}`}</span>
+                </button>
+              </div>
+
+              {gapAnalysis && (
+                <div className="space-y-6">
+                  
+                  <div className="glass-panel-glow p-6 rounded-3xl border border-cyan-500/30 flex flex-col sm:flex-row items-center justify-between gap-6">
+                    <div>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                        Benchmarked Readiness
+                      </span>
+                      <h3 className="text-2xl font-black text-white mt-1">
+                        {gapAnalysis.roleMatchPercentage}% Readiness for {targetRole}
+                      </h3>
+                      <p className="text-xs text-slate-300 mt-1">
+                        Profile currently matches {gapAnalysis.matchedSkills?.length || 0} core competencies, with {gapAnalysis.missingSkills?.length || 0} recommended competencies to acquire.
+                      </p>
+                    </div>
+
+                    <div className="w-28 h-28 rounded-full border-4 border-cyan-500/40 flex items-center justify-center shrink-0">
+                      <span className="text-2xl font-black text-cyan-400">
+                        {gapAnalysis.roleMatchPercentage}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+                      <h4 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Verified Profile Competencies</span>
+                      </h4>
+
+                      <div className="space-y-2.5">
+                        {(!gapAnalysis.matchedSkills || gapAnalysis.matchedSkills.length === 0) ? (
+                          <p className="text-xs text-slate-500 py-4 text-center">No matching technical skills cataloged yet.</p>
+                        ) : (
+                          gapAnalysis.matchedSkills.map((s, idx) => (
+                            <div key={idx} className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                              <span className="text-xs font-bold text-white">{s.name}</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">
+                                Level {s.level || 3}/5 Proficient
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+                      <h4 className="text-sm font-bold text-rose-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4" />
+                        <span>Recommended Missing Competencies</span>
+                      </h4>
+
+                      <div className="space-y-2.5">
+                        {(!gapAnalysis.missingSkills || gapAnalysis.missingSkills.length === 0) ? (
+                          <p className="text-xs text-emerald-400 py-4 text-center">All primary technical baselines satisfied.</p>
+                        ) : (
+                          gapAnalysis.missingSkills.map((s, idx) => (
+                            <div key={idx} className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                              <div>
+                                <span className="text-xs font-bold text-white block">{s.name}</span>
+                                <span className="text-[10px] text-slate-400">{s.description || 'Essential tool for this role'}</span>
+                              </div>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                                s.importance === 'high' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'
+                              }`}>
+                                {s.importance}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+
+                </div>
+              )}
+
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* TAB 6: DIGITAL PORTFOLIO & RESUME BUILDER */}
+          {/* ========================================================= */}
+          {activeTab === 'portfolio' && (
+            <div className="space-y-6">
+              
+              <div className="glass-panel p-6 rounded-3xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-extrabold text-white">Student Digital Portfolio & Resume</h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Manage project repositories, verified technical skills, professional certifications, and internship experiences.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowResumeModal(true)}
+                  className="px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-2 transition shrink-0"
+                >
+                  <Briefcase className="w-4 h-4" />
+                  <span>Preview Full Digital Resume</span>
+                </button>
+              </div>
+
+              {/* Technical Skills */}
+              <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">Technical Competencies</h4>
+                  <span className="text-xs text-slate-400">Total: {profile?.skills?.length || 0}</span>
+                </div>
+
+                <form onSubmit={handleAddSkill} className="flex flex-col sm:flex-row items-center gap-3 mb-4">
+                  <input
+                    type="text"
+                    value={newSkill}
+                    onChange={(e) => setNewSkill(e.target.value)}
+                    placeholder="Enter skill name (e.g. React.js, Python, Docker)"
+                    className="flex-1 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none w-full"
+                  />
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <span className="text-xs text-slate-400">Proficiency:</span>
+                    <select
+                      value={skillLevel}
+                      onChange={(e) => setSkillLevel(Number(e.target.value))}
+                      className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white outline-none"
+                    >
+                      <option value={1}>1 - Beginner</option>
+                      <option value={2}>2 - Elementary</option>
+                      <option value={3}>3 - Intermediate</option>
+                      <option value={4}>4 - Advanced</option>
+                      <option value={5}>5 - Expert</option>
+                    </select>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={addingSkill}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1 w-full sm:w-auto justify-center"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Skill (+15 XP)</span>
+                  </button>
+                </form>
+
+                <div className="flex flex-wrap gap-2">
+                  {profile?.skills?.map((s, idx) => (
+                    <div 
+                      key={idx}
+                      className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-medium text-slate-200 flex items-center gap-2 group"
+                    >
+                      <span>{s.name}</span>
+                      <span className="text-[10px] text-cyan-400 font-mono">({s.level}/5)</span>
+                      <button 
+                        onClick={() => handleDeleteSkill(s.name)}
+                        className="text-slate-500 hover:text-rose-400 transition"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Projects */}
+              <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">Project Portfolio</h4>
+                  <span className="text-xs text-slate-400">Total: {profile?.portfolio?.projects?.length || 0}</span>
+                </div>
+
+                <form onSubmit={handleAddProject} className="space-y-3 mb-6 p-4 rounded-2xl bg-slate-900/60 border border-slate-800">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      value={newProjTitle}
+                      onChange={(e) => setNewProjTitle(e.target.value)}
+                      placeholder="Project Title (e.g. Distributed Consensus Engine)"
+                      className="px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none"
+                    />
+                    <input
+                      type="text"
+                      value={newProjUrl}
+                      onChange={(e) => setNewProjUrl(e.target.value)}
+                      placeholder="Repository / Deployment URL (optional)"
+                      className="px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={newProjDesc}
+                    onChange={(e) => setNewProjDesc(e.target.value)}
+                    placeholder="Short description, architecture, and technology stack used..."
+                    className="w-full px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={addingProj}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Save Project (+50 XP)</span>
+                  </button>
+                </form>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {profile?.portfolio?.projects?.map(p => (
+                    <div key={p._id} className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <h5 className="text-xs font-bold text-white">{p.title}</h5>
+                          <button 
+                            onClick={() => handleDeleteProject(p._id)}
+                            className="text-slate-500 hover:text-rose-400 p-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-400 mb-3">{p.description}</p>
+                      </div>
+                      {p.url && (
+                        <a 
+                          href={p.url} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="text-[11px] text-cyan-400 hover:underline flex items-center gap-1 font-mono"
+                        >
+                          <span>{p.url}</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Certifications & Internships */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Certifications */}
+                <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Professional Certifications</h4>
+                  
+                  <form onSubmit={handleAddCertification} className="space-y-2 mb-4">
+                    <input
+                      type="text"
+                      value={newCertTitle}
+                      onChange={(e) => setNewCertTitle(e.target.value)}
+                      placeholder="Certificate Title (e.g. AWS Certified Cloud Practitioner)"
+                      className="w-full px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 outline-none"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newCertIssuer}
+                        onChange={(e) => setNewCertIssuer(e.target.value)}
+                        placeholder="Issuing Organization (e.g. Amazon Web Services, Meta)"
+                        className="flex-1 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={addingCert}
+                        className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl"
+                      >
+                        Add (+75 XP)
+                      </button>
+                    </div>
+                  </form>
+
+                  <div className="space-y-2">
+                    {profile?.portfolio?.certifications?.map(c => (
+                      <div key={c._id} className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="font-bold text-white block">{c.title}</span>
+                          <span className="text-[10px] text-slate-400">{c.issuer}</span>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteCertification(c._id)}
+                          className="text-slate-500 hover:text-rose-400"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Internships */}
+                <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Industry Experience & Internships</h4>
+                  
+                  <form onSubmit={handleAddInternship} className="space-y-2 mb-4">
+                    <input
+                      type="text"
+                      value={newInternCompany}
+                      onChange={(e) => setNewInternCompany(e.target.value)}
+                      placeholder="Company Name (e.g. InnovateTech Solutions)"
+                      className="w-full px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 outline-none"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={newInternRole}
+                        onChange={(e) => setNewInternRole(e.target.value)}
+                        placeholder="Role (e.g. Junior Web Engineering Intern)"
+                        className="px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={newInternDuration}
+                        onChange={(e) => setNewInternDuration(e.target.value)}
+                        placeholder="Duration (e.g. 2 Months, Summer 2025)"
+                        className="px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 outline-none"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={addingIntern}
+                      className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl"
+                    >
+                      Record Internship (+100 XP)
+                    </button>
+                  </form>
+
+                  <div className="space-y-2">
+                    {profile?.portfolio?.internships?.map(i => (
+                      <div key={i._id} className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="font-bold text-white block">{i.role} at {i.company}</span>
+                          <span className="text-[10px] text-slate-400">{i.duration}</span>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteInternship(i._id)}
+                          className="text-slate-500 hover:text-rose-400"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* TAB 7: GAMIFICATION & LEADERBOARD */}
+          {/* ========================================================= */}
+          {activeTab === 'gamification' && (
+            <div className="space-y-6">
+              
+              <div className="glass-panel-glow p-6 rounded-3xl border border-amber-500/30">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                  <div>
+                    <span className="text-xs font-bold text-amber-400 uppercase tracking-wider block">
+                      Academic Motivation & Gamification Progress
+                    </span>
+                    <h3 className="text-2xl font-black text-white mt-1">
+                      Level {currentLevel}: {levelTitle}
+                    </h3>
+                    <p className="text-xs text-slate-300">
+                      Earn XP by maintaining consistent attendance, resolving remedial tasks, and completing daily learning milestones.
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-3xl font-black text-amber-400">{currentXp}</span>
+                    <span className="text-xs text-slate-400 block font-mono">Total Academic XP</span>
+                  </div>
+                </div>
+
+                <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden mb-2">
+                  <div 
+                    className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all duration-500"
+                    style={{ width: `${levelProgressPct}%` }}
+                  ></div>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                  <span>{xpInCurrentLevel} XP in Level {currentLevel}</span>
+                  <span>{500 - xpInCurrentLevel} XP to Level {currentLevel + 1}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Badges Showcase */}
+                <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Award className="w-4 h-4 text-amber-400" />
+                    <span>Unlocked Badges & Distinctions</span>
+                  </h4>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { name: 'Newcomer', desc: 'Verified student onboarding', unlocked: true },
+                      { name: 'Rising Star', desc: 'Achieved 500+ academic XP points', unlocked: currentXp >= 500 },
+                      { name: 'Scholar Badge', desc: 'Achieved 1000+ academic XP points', unlocked: currentXp >= 1000 },
+                      { name: 'Attendance Titan', desc: 'Maintained 85%+ overall attendance', unlocked: overallAttendancePct >= 85 },
+                      { name: 'Project Builder', desc: 'Cataloged at least 1 real-world project', unlocked: (profile?.portfolio?.projects?.length || 0) > 0 },
+                      { name: 'Remediation Champion', desc: 'Successfully resolved assigned recovery task', unlocked: (remediation?.assignedActions?.filter(a => a.status === 'completed').length || 0) > 0 }
+                    ].map(badge => (
+                      <div 
+                        key={badge.name}
+                        className={`p-3.5 rounded-2xl border transition flex flex-col justify-between ${
+                          badge.unlocked 
+                            ? 'bg-amber-500/10 border-amber-500/30 text-white' 
+                            : 'bg-slate-900/40 border-slate-800 opacity-40 text-slate-500'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <Trophy className={`w-5 h-5 ${badge.unlocked ? 'text-amber-400' : 'text-slate-600'}`} />
+                          <span className="text-[10px] font-bold">
+                            {badge.unlocked ? 'Unlocked' : 'Locked'}
+                          </span>
+                        </div>
+                        <div>
+                          <h5 className="text-xs font-bold">{badge.name}</h5>
+                          <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{badge.desc}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Leaderboard */}
+                <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                      <Trophy className="w-4 h-4 text-cyan-400" />
+                      <span>Department Academic Leaderboard</span>
+                    </h4>
+                    <span className="text-xs text-slate-400">Rankings</span>
+                  </div>
+
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    {leaderboard.length === 0 ? (
+                      <p className="text-xs text-slate-500 py-4 text-center">Loading leaderboard rankings...</p>
+                    ) : (
+                      leaderboard.map(s => {
+                        const isSelf = s.studentId === user._id || s.name?.includes(user?.firstName);
+                        return (
+                          <div 
+                            key={s.rank}
+                            className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                              isSelf 
+                                ? 'bg-indigo-600/20 border-indigo-500/50 text-white ring-1 ring-indigo-500' 
+                                : 'bg-slate-900 border-slate-800 text-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold font-mono text-[11px] ${
+                                s.rank === 1 ? 'bg-amber-500 text-slate-950 font-black' :
+                                s.rank === 2 ? 'bg-slate-300 text-slate-950 font-black' :
+                                s.rank === 3 ? 'bg-amber-700 text-white font-black' :
+                                'bg-slate-800 text-slate-400'
+                              }`}>
+                                {s.rank}
+                              </span>
+                              <div>
+                                <span className="font-bold block">
+                                  {s.name} {isSelf && '(You)'}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-mono">{s.collegeId} &bull; Level {s.level}</span>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className="font-mono font-bold text-amber-400 block">{s.xp} XP</span>
+                              <span className="text-[10px] text-slate-400">CGPA: {s.cgpa?.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          )}
+
+        </div>
       </main>
+
+      {/* Floating 24/7 AI Chatbot Widget */}
+      <AiChatbot studentId={user._id || user.id} placeholderText="Ask counselor about academic recovery, course preparation, or career pathways..." />
+
+      {/* ========================================================= */}
+      {/* MODAL 1: OFFICIAL DIGITAL MARKSHEET / TRANSCRIPT */}
+      {/* ========================================================= */}
+      {showTranscriptModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto printable-area text-slate-100">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-6 no-print">
+              <div className="flex items-center gap-2">
+                <Printer className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-lg font-extrabold text-white">Official Academic Transcript</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print Gradecard</span>
+                </button>
+                <button
+                  onClick={() => setShowTranscriptModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-black uppercase tracking-wider text-white">EduVision Institute of Engineering & Technology</h2>
+              <p className="text-xs text-slate-400">Affiliated to State Technical University &bull; Academic Session 2025-2026</p>
+              <h4 className="text-sm font-bold text-indigo-400 uppercase tracking-widest mt-2 underline">
+                Semester Evaluation Gradecard
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-850/80 border border-slate-800 text-xs mb-6">
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase block">Student Name</span>
+                <span className="font-bold text-white">{user?.firstName} {user?.lastName}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase block">College ID</span>
+                <span className="font-bold text-white font-mono">{profile?.collegeId}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase block">Department</span>
+                <span className="font-bold text-white">{profile?.department}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase block">Cumulative CGPA</span>
+                <span className="font-bold text-amber-400">{profile?.cgpa?.toFixed(2)} / 10.0</span>
+              </div>
+            </div>
+
+            <table className="w-full text-left text-xs mb-6">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider">
+                  <th className="py-2.5 px-3">Subject Code</th>
+                  <th className="py-2.5 px-3">Course Title</th>
+                  <th className="py-2.5 px-3">Marks Obtained</th>
+                  <th className="py-2.5 px-3">Attendance</th>
+                  <th className="py-2.5 px-3">Result</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                {marks.map(m => {
+                  const att = attendance.find(a => a.courseCode === m.courseCode);
+                  const attPresent = att ? att.records.filter(r => r.status === 'present').length : 0;
+                  const attTotal = att ? att.records.length : 0;
+                  const attPct = attTotal > 0 ? ((attPresent / attTotal) * 100).toFixed(1) : '100.0';
+
+                  const i1 = m.evaluations.find(e => e.type === 'internal_1')?.obtained || 0;
+                  const i2 = m.evaluations.find(e => e.type === 'internal_2')?.obtained || 0;
+                  const prac = m.evaluations.find(e => e.type === 'practical')?.obtained || 0;
+                  const total = i1 + i2 + prac;
+                  const maxTotal = 70;
+                  const pct = (total / maxTotal) * 100;
+
+                  return (
+                    <tr key={m.courseCode}>
+                      <td className="py-2.5 px-3 font-mono font-bold text-white">{m.courseCode}</td>
+                      <td className="py-2.5 px-3">{m.courseName}</td>
+                      <td className="py-2.5 px-3 font-mono">{total} / {maxTotal}</td>
+                      <td className="py-2.5 px-3 font-mono">{attPct}%</td>
+                      <td className="py-2.5 px-3 font-bold">
+                        <span className={pct >= 50 ? 'text-emerald-400' : 'text-rose-400'}>
+                          {pct >= 50 ? 'PASS' : 'FAIL'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            <div className="pt-8 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800 mt-6">
+              <div>
+                <p className="font-semibold">Mentor Faculty: {profile?.mentorId ? `Dr. ${profile.mentorId.firstName} ${profile.mentorId.lastName}` : 'Dr. Amit Sharma'}</p>
+                <span className="text-[10px] text-slate-500">Verified digitally on {new Date().toLocaleDateString()}</span>
+              </div>
+              <div className="text-right">
+                <p className="font-semibold">Controller of Examinations</p>
+                <span className="text-[10px] text-slate-500">EduVision Academic Registry</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 2: DIGITAL RESUME PREVIEW */}
+      {/* ========================================================= */}
+      {showResumeModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto printable-area text-slate-100">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-6 no-print">
+              <div className="flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-cyan-400" />
+                <h3 className="text-lg font-extrabold text-white">Student Digital Resume & Portfolio</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="px-4 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print Resume</span>
+                </button>
+                <button
+                  onClick={() => setShowResumeModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="border-b border-slate-800 pb-6 mb-6">
+              <h2 className="text-2xl font-black text-white">{user?.firstName} {user?.lastName}</h2>
+              <p className="text-xs text-cyan-400 font-semibold mt-0.5">
+                Aspiring {targetRole} &bull; {profile?.department}
+              </p>
+              <div className="flex flex-wrap gap-4 text-xs text-slate-400 mt-2 font-mono">
+                <span>Email: {user?.email}</span>
+                <span>College ID: {profile?.collegeId}</span>
+                <span>CGPA: {profile?.cgpa?.toFixed(2)} / 10.0</span>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Technical Competencies</h4>
+              <div className="flex flex-wrap gap-2">
+                {profile?.skills?.map((s, idx) => (
+                  <span key={idx} className="px-2.5 py-1 rounded-lg bg-slate-800 text-xs text-white border border-slate-700">
+                    {s.name} (Lvl {s.level}/5)
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Key Project Repositories</h4>
+              <div className="space-y-3">
+                {profile?.portfolio?.projects?.map(p => (
+                  <div key={p._id} className="p-3.5 rounded-xl bg-slate-850 border border-slate-800">
+                    <div className="flex items-center justify-between mb-1">
+                      <h5 className="text-xs font-bold text-white">{p.title}</h5>
+                      {p.url && <a href={p.url} className="text-[11px] text-cyan-400 font-mono hover:underline">{p.url}</a>}
+                    </div>
+                    <p className="text-xs text-slate-400">{p.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Professional Certifications</h4>
+                <div className="space-y-2">
+                  {profile?.portfolio?.certifications?.map(c => (
+                    <div key={c._id} className="p-2.5 rounded-xl bg-slate-850 text-xs">
+                      <span className="font-bold text-white block">{c.title}</span>
+                      <span className="text-[10px] text-slate-400">{c.issuer}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Professional Experience</h4>
+                <div className="space-y-2">
+                  {profile?.portfolio?.internships?.map(i => (
+                    <div key={i._id} className="p-2.5 rounded-xl bg-slate-850 text-xs">
+                      <span className="font-bold text-white block">{i.role} at {i.company}</span>
+                      <span className="text-[10px] text-slate-400">{i.duration}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

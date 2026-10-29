@@ -115,10 +115,33 @@ router.get('/me', auth, async (req, res) => {
       profile = await Student.findOne({ userId: user._id })
         .populate('mentorId', 'firstName lastName email')
         .populate('parentId', 'firstName lastName email');
+      
+      if (profile) {
+        // Daily login streak check
+        const now = new Date();
+        const lastActive = profile.gamification?.lastActive ? new Date(profile.gamification.lastActive) : null;
+        if (!lastActive) {
+          profile.gamification.streak = 1;
+          profile.gamification.lastActive = now;
+          await profile.save();
+        } else {
+          const diffHours = (now - lastActive) / (1000 * 60 * 60);
+          if (diffHours >= 20 && diffHours <= 48) {
+            profile.gamification.streak = (profile.gamification.streak || 1) + 1;
+            profile.gamification.xp = (profile.gamification.xp || 0) + 20; // Daily streak XP
+            profile.gamification.lastActive = now;
+            await profile.save();
+          } else if (diffHours > 48) {
+            profile.gamification.streak = 1;
+            profile.gamification.lastActive = now;
+            await profile.save();
+          }
+        }
+      }
     } else if (user.role === 'parent') {
       profile = await Student.findOne({ parentId: user._id })
-        .populate('userId', 'firstName lastName email')
-        .populate('mentorId', 'firstName lastName email');
+        .populate('userId', 'firstName lastName collegeId department year semester email')
+        .populate('mentorId', 'firstName lastName email phone');
     }
 
     res.json({ user, profile });

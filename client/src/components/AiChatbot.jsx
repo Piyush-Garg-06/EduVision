@@ -1,21 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
 import API from '../api';
-import { MessageSquare, X, Send, Sparkles, User, Bot, Loader2 } from 'lucide-react';
+import MarkdownRenderer from './MarkdownRenderer';
+import { MessageSquare, X, Send, Sparkles, User, Bot, Loader2, Minus, Maximize2 } from 'lucide-react';
 
-export default function AiChatbot({ studentId, placeholderText = "Ask me anything about the student..." }) {
+export default function AiChatbot({ studentId, placeholderText = "Ask EduVision AI Academic Counselor..." }) {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Hello! I am EduVision AI, your personal academic success counselor. Ask me questions about CGPA, weak subjects, attendance forecast, or risk status!" }
+    { 
+      role: 'assistant', 
+      content: "Hello! I am EduVision AI, your 24/7 academic counselor and mentor. How can I assist you with your academic planning, course performance, attendance recovery, or career roadmap today?" 
+    }
   ]);
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
   const suggestionChips = [
-    "How is the overall attendance?",
-    "Identify weak subjects and marks",
-    "What is the current academic risk tier?",
-    "Suggest career pathways based on skills"
+    "How can I improve my performance in Compiler Design?",
+    "What is the recommended attendance recovery plan?",
+    "Suggest a study roadmap to achieve 7.5 CGPA",
+    "Recommended portfolio projects for Software Engineer roles"
   ];
 
   const scrollToBottom = () => {
@@ -38,7 +42,6 @@ export default function AiChatbot({ studentId, placeholderText = "Ask me anythin
     setLoading(true);
 
     try {
-      // Gather last 4 messages for conversational context
       const chatHistory = messages.slice(-4).map(m => ({
         role: m.role,
         content: m.content
@@ -59,7 +62,7 @@ export default function AiChatbot({ studentId, placeholderText = "Ask me anythin
       console.error(err);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: "Sorry, I am facing trouble connecting to my knowledge base right now. Please try again.",
+        content: "I am experiencing a momentary connection issue. Please try again in a few moments.",
         isAiPowered: false
       }]);
     } finally {
@@ -69,116 +72,112 @@ export default function AiChatbot({ studentId, placeholderText = "Ask me anythin
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
-      {/* Chat Window */}
+      
+      {/* Floating Chat Window */}
       {isOpen && (
-        <div className="w-80 sm:w-[380px] h-[520px] bg-white border border-slate-200 shadow-2xl rounded-2xl flex flex-col mb-4 overflow-hidden animate-in slide-in-from-bottom duration-300">
+        <div className="w-80 sm:w-[420px] h-[550px] bg-slate-900 border border-slate-700 shadow-2xl rounded-3xl flex flex-col mb-4 overflow-hidden animate-in slide-in-from-bottom duration-300">
           
           {/* Header */}
-          <div className="p-4 bg-gradient-to-r from-indigo-600 to-cyan-500 text-white flex items-center justify-between shadow-md">
+          <div className="p-4 bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 text-white flex items-center justify-between shadow-lg">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
                 <Sparkles className="w-4 h-4 text-cyan-200 animate-pulse" />
               </div>
               <div>
-                <h3 className="font-bold text-sm tracking-tight">EduVision AI Assistant</h3>
-                <span className="text-[10px] text-cyan-100 font-semibold tracking-wider uppercase block">Context-Aware Counselor</span>
+                <h3 className="font-bold text-sm tracking-tight">EduVision AI Counselor</h3>
+                <span className="text-[10px] text-cyan-100 font-semibold tracking-wider uppercase block">
+                  Autonomous 24/7 Academic Mentor
+                </span>
               </div>
             </div>
             <button 
               onClick={() => setIsOpen(false)}
-              className="p-1.5 hover:bg-white/10 rounded-lg transition"
+              className="p-1.5 hover:bg-white/10 rounded-xl transition"
+              aria-label="Close Counselor"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-950">
             {messages.map((m, idx) => (
               <div key={idx} className={`flex gap-2.5 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {m.role !== 'user' && (
-                  <div className="w-7 h-7 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                    <Bot className="w-4 h-4 text-indigo-600" />
+                  <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                    <Bot className="w-4 h-4 text-cyan-400" />
                   </div>
                 )}
-                
-                <div className={`p-3 rounded-2xl max-w-[78%] text-xs shadow-sm leading-relaxed ${
-                  m.role === 'user' 
-                    ? 'bg-indigo-600 text-white rounded-tr-none' 
-                    : 'bg-white text-slate-700 border border-slate-200/60 rounded-tl-none'
+                <div className={`p-3.5 rounded-2xl text-xs leading-relaxed max-w-[85%] ${
+                  m.role === 'user'
+                    ? 'bg-gradient-to-r from-indigo-600 to-cyan-600 text-white rounded-br-none shadow-md'
+                    : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'
                 }`}>
-                  {m.content}
+                  {m.role === 'user' ? (
+                    <p className="whitespace-pre-line text-white">{m.content}</p>
+                  ) : (
+                    <MarkdownRenderer content={m.content} />
+                  )}
                 </div>
-
                 {m.role === 'user' && (
-                  <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-                    <User className="w-4 h-4 text-slate-600" />
+                  <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center shrink-0 mt-0.5">
+                    <User className="w-4 h-4 text-slate-400" />
                   </div>
                 )}
               </div>
             ))}
             
             {loading && (
-              <div className="flex gap-2.5 justify-start">
-                <div className="w-7 h-7 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                  <Bot className="w-4 h-4 text-indigo-600" />
-                </div>
-                <div className="p-3 rounded-2xl bg-white border border-slate-200/60 rounded-tl-none flex items-center gap-1.5">
-                  <Loader2 className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
-                  <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Thinking...</span>
-                </div>
+              <div className="flex items-center gap-2 text-slate-400 text-xs py-2">
+                <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                <span className="text-[11px]">EduVision AI is analyzing student telemetry...</span>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Prompt suggestions when chat is empty or just started */}
-          {messages.length === 1 && (
-            <div className="px-4 py-2 bg-slate-50 border-t border-slate-100">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Suggested Prompts:</p>
-              <div className="flex flex-wrap gap-1.5">
-                {suggestionChips.map((chip, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSend(chip)}
-                    className="text-[10px] px-2 py-1 bg-white hover:bg-indigo-50 border border-slate-200 rounded-lg text-slate-600 hover:text-indigo-600 transition font-medium"
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Quick Prompt Suggestions */}
+          <div className="px-3 py-2 bg-slate-900/95 border-t border-slate-800 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            {suggestionChips.map((chip, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleSend(chip)}
+                className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-750 text-[10px] text-slate-300 hover:text-white shrink-0 border border-slate-700 transition"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
 
-          {/* Footer Input */}
-          <div className="p-3 border-t border-slate-100 bg-white flex gap-2">
+          {/* Chat Input */}
+          <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center gap-2">
             <input
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder={placeholderText}
-              className="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-xs focus:border-indigo-500 focus:outline-none placeholder-slate-400"
+              className="flex-1 px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-cyan-500 outline-none transition"
             />
             <button
               onClick={() => handleSend()}
               disabled={loading || !message.trim()}
-              className="p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition shadow-md shadow-indigo-100 disabled:opacity-50 disabled:shadow-none"
+              className="p-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white transition disabled:opacity-50 shrink-0"
+              aria-label="Send message"
             >
-              <Send className="w-3.5 h-3.5" />
+              <Send className="w-4 h-4" />
             </button>
           </div>
-
         </div>
       )}
 
-      {/* Floating Button */}
+      {/* Floating Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-600 to-cyan-500 text-white flex items-center justify-center shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition duration-300 hover:scale-105"
-        title="Chat with EduVision AI"
+        className="px-4 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-bold text-xs uppercase tracking-wider shadow-xl shadow-indigo-600/30 flex items-center gap-2.5 hover:scale-105 transition-all group"
       >
-        {isOpen ? <X className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
+        <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+        <span>{isOpen ? 'Close AI Counselor' : '24/7 AI Counselor'}</span>
       </button>
 
     </div>

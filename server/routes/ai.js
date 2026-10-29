@@ -45,9 +45,25 @@ router.post('/action-plan', auth, async (req, res) => {
     remediation.mentorRemarks = `AI generated recovery plan updated. Recommendation summary: ${plan.summary}`;
     await remediation.save();
 
+    // Save weekly schedule to student document
+    student.aiStudyPlan = {
+      generatedAt: new Date(),
+      summary: plan.summary,
+      urgentFocusAreas: plan.urgentFocusAreas || [],
+      weeklySchedule: (plan.weeklyTimetable || []).map(item => ({
+        day: item.day,
+        focusSubject: item.focusSubject,
+        targetTopic: item.targetTopic,
+        durationMinutes: item.durationMinutes || 60,
+        isCompleted: false
+      }))
+    };
+    await student.save();
+
     res.json({
       plan,
-      remediation
+      remediation,
+      studyPlan: student.aiStudyPlan
     });
   } catch (err) {
     console.error(err);

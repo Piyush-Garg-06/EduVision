@@ -40,17 +40,27 @@ const studentsData = [
       { semester: 4, sgpa: 5.20 }
     ],
     skills: [
-      { name: 'HTML/CSS', level: 3, verified: true },
-      { name: 'JavaScript', level: 2, verified: false }
+      { name: 'JavaScript & ES6+', level: 4, verified: true },
+      { name: 'React.js', level: 3, verified: true },
+      { name: 'Node.js & Express', level: 3, verified: false },
+      { name: 'C++ & Algorithms', level: 3, verified: true },
+      { name: 'HTML5 & CSS3', level: 4, verified: true },
+      { name: 'SQL & Database Queries', level: 3, verified: false }
     ],
     projects: [
-      { title: 'Personal Portfolio', description: 'Simple HTML portfolio site', url: 'https://github.com/aaravs/portfolio' }
+      { title: 'EduVision Smart Campus Portal', description: 'Distributed academic life tracker and AI-driven early intervention engine built with React, Tailwind, and Node.js.', url: 'https://github.com/aaravs/eduvision-portal' },
+      { title: 'Algorithm Visualizer & Simulator', description: 'Interactive visualization for Dijkstra, A*, and sorting algorithms with step-by-step complexity profiling.', url: 'https://github.com/aaravs/algo-visualizer' }
     ],
-    certifications: [],
-    internships: [],
-    xp: 150,
+    certifications: [
+      { title: 'Meta Front-End Developer Professional Certificate', issuer: 'Meta & Coursera', date: new Date('2025-10-15') },
+      { title: 'AWS Certified Cloud Practitioner', issuer: 'Amazon Web Services', date: new Date('2025-12-05') }
+    ],
+    internships: [
+      { company: 'InnovateTech Solutions', role: 'Junior Full Stack Engineering Intern', duration: '3 Months (Summer 2025)' }
+    ],
+    xp: 380,
     level: 1,
-    badges: ['Newcomer'],
+    badges: ['Newcomer', 'Rising Star'],
     attendanceConfig: {
       'CS-501': 0.65,
       'CS-502': 0.76,

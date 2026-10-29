@@ -47,7 +47,23 @@ const StudentSchema = new mongoose.Schema({
   gamification: {
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
-    badges: [{ type: String }]
+    badges: [{ type: String }],
+    streak: { type: Number, default: 3 },
+    lastActive: { type: Date, default: Date.now }
+  },
+  aiStudyPlan: {
+    generatedAt: { type: Date },
+    summary: { type: String },
+    weeklySchedule: [
+      {
+        day: { type: String },
+        focusSubject: { type: String },
+        targetTopic: { type: String },
+        durationMinutes: { type: Number, default: 60 },
+        isCompleted: { type: Boolean, default: false }
+      }
+    ],
+    urgentFocusAreas: [{ type: String }]
   }
 });
 

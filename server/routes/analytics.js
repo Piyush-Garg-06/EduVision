@@ -143,10 +143,13 @@ router.get('/admin', auth, async (req, res) => {
     res.json({
       totalStudents,
       avgCGPA: avgCGPA.toFixed(2),
+      averageCgpa: avgCGPA.toFixed(2),
       avgAttendance: avgAttendance.toFixed(1),
+      averageAttendance: parseFloat(avgAttendance.toFixed(1)),
       belowThresholdCount,
       highRiskCount,
       highRiskList,
+      highRiskStudents: highRiskList,
       departmentBreakdown,
       subjectPerformance,
       skillDistribution
@@ -226,6 +229,58 @@ router.get('/faculty', auth, async (req, res) => {
     });
   } catch (err) {
     console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   GET api/analytics/leaderboard
+// @desc    Get student gamification leaderboard (Rank, XP, Badges, Level, Streak)
+router.get('/leaderboard', auth, async (req, res) => {
+  try {
+    const students = await Student.find()
+      .populate('userId', 'firstName lastName email')
+      .sort({ 'gamification.xp': -1 })
+      .limit(20);
+
+    const leaderboard = students.map((s, idx) => ({
+      rank: idx + 1,
+      studentId: s.userId?._id,
+      name: s.userId ? `${s.userId.firstName} ${s.userId.lastName}` : 'Anonymous Student',
+      collegeId: s.collegeId,
+      department: s.department,
+      cgpa: s.cgpa,
+      xp: s.gamification?.xp || 0,
+      level: s.gamification?.level || 1,
+      badges: s.gamification?.badges || [],
+      streak: s.gamification?.streak || 1
+    }));
+
+    res.json(leaderboard);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error fetching leaderboard');
+  }
+});
+
+// @route   GET api/analytics/courses
+// @desc    Get standard courses list for logging and attendance
+router.get('/courses', auth, async (req, res) => {
+  try {
+    const defaultCourses = [
+      { code: 'CS-501', name: 'Foundation of Blockchain', type: 'theory' },
+      { code: 'CS-502', name: 'Operating System', type: 'theory' },
+      { code: 'CS-503', name: 'Data Mining', type: 'theory' },
+      { code: 'CS-504', name: 'Compiler Design', type: 'theory' },
+      { code: 'CS-505', name: 'Analysis of Algorithm', type: 'theory' },
+      { code: 'CS-506', name: 'Computer Graphics', type: 'theory' },
+      { code: 'CSL-501', name: 'Analysis of Algo Lab', type: 'lab' },
+      { code: 'CSL-502', name: 'Compiler Design Lab', type: 'lab' },
+      { code: 'CSL-503', name: 'Advanced Java Lab', type: 'lab' },
+      { code: 'CSL-504', name: 'Computer Graphics Lab', type: 'lab' }
+    ];
+
+    res.json(defaultCourses);
+  } catch (err) {
     res.status(500).send('Server Error');
   }
 });
